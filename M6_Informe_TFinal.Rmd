@@ -30,7 +30,7 @@ El objetivo de este trabajo es identificar los tópicos que tratan una porción 
 
 ## Materiales y métodos
 
-Para el desarrollo del trabajo se formó un corpus de registros bibliográficos descargados de la base de datos [Scopus](https://www.elsevier.com/solutions/scopus). Tal como se indica en el [trabajo anterior](http://rpubs.com/cgonzalez/516773), en su selección se aplicó el rango temporal 2007-2016 como año de publicación, que en el título, resumen o palabras claves apareciera mencionado el topónimo Argentina o el nombre de alguna de las provincias argentinas, y que perteneciera a la categoría temática Aquatic Science (cod. 1104). Dicho corpus significa 2574 registros bibliográficos. Se procedió a descargarlos en formato BibTex. Es el formato elegido para poder convertirlos con facilidad en un *data frame* usando la función **scopus2df** del paquete **Bibliometrix**.
+Para el desarrollo del trabajo se formó un corpus de registros bibliográficos descargados de la base de datos [Scopus](https://www.elsevier.com/solutions/scopus). Tal como se indica en el [trabajo anterior](http://rpubs.com/cgonzalez/516773), en su selección se aplicó el rango temporal 2007-2016 como año de publicación, que en el título, resumen o palabras claves apareciera mencionado el topónimo Argentina o el nombre de alguna de las provincias argentinas, y que perteneciera a la categoría temática Aquatic Science (cod. 1104). Dicho corpus significa 2574 registros bibliográficos. Se procedió a descargarlos en formato BibTex. Es el formato elegido para poder convertirlos con facilidad en un **data frame** usando la función **convert2df** del paquete **Bibliometrix**. De ellos se tomó únicamente los datos de título, palabras claves y resumen, que son los que concentran la carga semántica de la referencia.
 ```{r}
 library (tidyverse)
 library (bibliometrix)
@@ -40,10 +40,208 @@ Aquatic_LxArg_LxEx <- as.tibble(convert2df(file = '/Users/claudiamgonzalez/Docum
 #Selecciono solo los campos título, resumen y palabras claves y los agrupo en una sola variable denominada texto.
 Aquatic_LxArg_LxEx <- Aquatic_LxArg_LxEx %>%
   select(TI,DE,ID,AB) %>%
-  unite(texto, TI,DE,ID,AB, sep = " ")
+  unite(text, TI,DE,ID,AB, sep = " ")
+
+#Le agrego el id de documento
+Aquatic_LxArg_LxEx <- data.frame(doc_id=row.names(Aquatic_LxArg_LxEx),
+                                 text=Aquatic_LxArg_LxEx$text)
 ```
 
-Se realiza un preprocesamiento de los textos transformándolos a mayúsculas, removiendo la puntuación, los números y aplicando una *stopword* para el idioma inglés.
+Se realiza un preprocesamiento de los textos transformándolos a mayúsculas, removiendo la puntuación, los números y aplicando una *stopword* para el idioma inglés. Para ello se usa el paquete **tm**.
+
+```{r}
+library (tm)
+
+#Creo el Corpus
+Aquatic_LxArg_LxEx_pre_Corpus = Corpus(VectorSource(Aquatic_LxArg_LxEx$text))
+
+#Limpio el corpus
+Aquatic_LxArg_LxEx_pre_Corpus = tm_map(Aquatic_LxArg_LxEx_pre_Corpus, content_transformer(tolower))
+Aquatic_LxArg_LxEx_pre_Corpus = tm_map(Aquatic_LxArg_LxEx_pre_Corpus, removePunctuation)
+Aquatic_LxArg_LxEx_pre_Corpus = tm_map(Aquatic_LxArg_LxEx_pre_Corpus, removeNumbers)
+Aquatic_LxArg_LxEx_pre_Corpus = tm_map(Aquatic_LxArg_LxEx_pre_Corpus, removeWords, stopwords(kind = "en"))
+
+# Aplico stemming
+Aquatic_LxArg_LxEx_pre_Corpus <- tm_map(Aquatic_LxArg_LxEx_pre_Corpus,stemDocument) 
+
+# Elimino los caracteres \n
+Aquatic_LxArg_LxEx_pre_Corpus = tm_map(Aquatic_LxArg_LxEx_pre_Corpus, content_transformer(function(x) str_replace_all(x, pattern = '\n',replacement = ' ')))
+```
+
+Se genera la matriz documento-término que permite tratar al corpus como una bolsa de palabras (BoW) y determinar sus frecuencias. 
+
+```{r}
+#Creo la matriz documento-término
+Aquatic_LxArg_LxEx_DTM = DocumentTermMatrix(Aquatic_LxArg_LxEx_pre_Corpus, control = list(minWordLength = 1))
+```
+
+Aplico el algoritmo LDA perteneciente a los conocidos "Topic Models".
+
+```{r}
+library(topicmodels)
+library(LDAvis)
+
+ui = unique(Aquatic_LxArg_LxEx_DTM$i)
+Aquatic_LxArg_LxEx_DTM = Aquatic_LxArg_LxEx_DTM[ui,]
+
+dim(Aquatic_LxArg_LxEx_DTM)
+
+lda_fit_2 <- LDA(Aquatic_LxArg_LxEx_DTM, k = 2, method = "Gibbs", control = list(delta=0.6,seed = 1234))
+
+saveRDS(lda_fit_2,'Resultados/lda_fit_2.rds')
+
+lda_fit_2 <- read_rds('Resultados/lda_fit_2.rds')
+#lda_fit
+
+Topics_2 <- terms(lda_fit_2, 20)
+Topics_2
+
+lda_fit_5 <- LDA(Aquatic_LxArg_LxEx_DTM, k = 5, method = "Gibbs", control = list(delta=0.6,seed = 1234))
+
+saveRDS(lda_fit_5,'Resultados/lda_fit_5.rds')
+
+lda_fit_5 <- read_rds('Resultados/lda_fit_5.rds')
+#lda_fit
+
+Topics_5 <- terms(lda_fit_5, 10)
+Topics_5
+
+lda_fit_10 <- LDA(Aquatic_LxArg_LxEx_DTM, k = 10, method = "Gibbs", control = list(delta=0.6,seed = 1234))
+
+saveRDS(lda_fit_10,'Resultados/lda_fit_10.rds')
+
+lda_fit_10 <- read_rds('Resultados/lda_fit_10.rds')
+#lda_fit
+
+Topics_10 <- terms(lda_fit_10, 10)
+Topics_10
+
+lda_fit_15 <- LDA(Aquatic_LxArg_LxEx_DTM, k = 15, method = "Gibbs", control = list(delta=0.6,seed = 1234))
+
+saveRDS(lda_fit_15,'Resultados/lda_fit_15.rds')
+
+lda_fit_15 <- read_rds('Resultados/lda_fit_15.rds')
+#lda_fit
+
+Topics_15 <- terms(lda_fit_15, 15)
+Topics_15
+
+lda_fit_20 <- LDA(Aquatic_LxArg_LxEx_DTM, k = 20, method = "Gibbs", control = list(delta=0.6,seed = 1234))
+
+saveRDS(lda_fit_20,'Resultados/lda_fit_20.rds')
+
+lda_fit_20 <- read_rds('Resultados/lda_fit_20.rds')
+#lda_fit
+
+Topics_20 <- terms(lda_fit_20, 20)
+Topics_20
+```
+
+Topic_5
+
+
+Se realiza un proceso de clusterización ...
+
+```{r}
+# Se vuelve a convertir el corpus en data frame para poder aplicar clustering con 
+Aquatic_LxArg_LxEx_pre_Corpus_df <-           data.frame(text=unlist(sapply(Aquatic_LxArg_LxEx_pre_Corpus, `[`, "content")), stringsAsFactors=F)
+
+# Se hacen los clusters
+Aquatic_LxArg_LxEx_CLUS_8 <- conceptualStructure(Aquatic_LxArg_LxEx_pre_Corpus_df, field="text", stemming=FALSE, minDegree=100, k.max = 8, labelsize=4)
+```
+
+
+
+
+
+```{r}
+library(textmineR)
+
+# load nih_sample data set from textmineR
+data(Aquatic_LxArg_LxEx)
+
+# create a document term matrix 
+dtm <- CreateDtm(doc_vec = Aquatic_LxArg_LxEx$text, # character vector of documents
+                 doc_names = Aquatic_LxArg_LxEx$doc_id, # document names
+                 ngram_window = c(1, 2), # minimum and maximum n-gram length
+                 stopword_vec = c(stopwords::stopwords("en"), # stopwords from tm
+                                  stopwords::stopwords(source = "smart")), # this is the default value
+                 lower = TRUE, # lowercase - this is the default value
+                 remove_punctuation = TRUE, # punctuation - this is the default
+                 remove_numbers = TRUE, # numbers - this is the default
+                 verbose = FALSE, # Turn off status bar for this demo
+                 cpus = 2) # default is all available cpus on the system
+
+# construct the matrix of term counts to get the IDF vector
+tf_mat <- TermDocFreq(dtm)
+```
+
+```{r}
+# TF-IDF and cosine similarity
+tfidf <- t(dtm[ , tf_mat$term ]) * tf_mat$idf
+
+tfidf <- t(tfidf)
+```
+
+```{r}
+csim <- tfidf / sqrt(rowSums(tfidf * tfidf))
+
+csim <- csim %*% t(csim)
+```
+
+
+```{r}
+cdist <- as.dist(1 - csim)
+```
+
+```{r}
+truth.K <- 2
+```
+
+```{r}
+clustering.kmeans <- kmeans(tfidf,2) 
+clustering.hierarchical <- hclust(cdist, method = "ward.D2") 
+clustering.dbscan <- dbscan::hdbscan(cdist, minPts = 10) 
+```
+
+
+```{r}
+hc <- hclust(cdist, "ward.D")
+
+clustering <- cutree(hc, 10)
+
+# plot(hc, main = "Hierarchical clustering of 100 NIH grant abstracts",
+   #  ylab = "", xlab = "", yaxt = "n")
+
+# rect.hclust(hc, 10, border = "red")
+
+```
+
+```{r}
+p_words <- colSums(dtm) / sum(dtm)
+
+cluster_words <- lapply(unique(clustering), function(x){
+  rows <- dtm[ clustering == x , ]
+  
+  # for memory's sake, drop all words that don't appear in the cluster
+  rows <- rows[ , colSums(rows) > 0 ]
+  
+  colSums(rows) / sum(rows) - p_words[ colnames(rows) ]
+})
+```
+
+```{r}
+# create a summary table of the top 5 words defining each cluster
+cluster_summary <- data.frame(cluster = unique(clustering),
+                              size = as.numeric(table(clustering)),
+                              top_words = sapply(cluster_words, function(d){
+                                paste(
+                                  names(d)[ order(d, decreasing = TRUE) ][ 1:5 ], 
+                                  collapse = ", ")
+                              }),
+                              stringsAsFactors = FALSE)
+```
+
 
 ```{r}
 library (tm)
@@ -58,19 +256,47 @@ Aquatic_LxArg_LxEx_pre_Corpus = tm_map(Aquatic_LxArg_LxEx_pre_Corpus, removeNumb
 Aquatic_LxArg_LxEx_pre_Corpus = tm_map(Aquatic_LxArg_LxEx_pre_Corpus, removeWords, stopwords(kind = "en"))
 ```
 
-```{r}
-inspect(Aquatic_LxArg_LxEx_pre_Corpus[1:4])
 
-#Esto lo probé y muestra cada tanto una \n que habria que eliminar. Ver en el ejemplo de Rosatti!!!!!!!!!!!!!!!!
+
+
+
+Hago clustering
+
+```{r}
+# El paquete corpus me permite convertir el corpus de TM en data Frame
+library(qdap)
+Aquatic_LxArg_LxEx_pre_Corpus_df <- as.data.frame(Aquatic_LxArg_LxEx_pre_Corpus) 
+
+#Aquatic_LxArg_LxEx_pre_Corpus_df <- DataframeSource(Aquatic_LxArg_LxEx_pre_Corpus) 
+
+
+
+library(qdap); as.data.frame(mycorpus)
+ 
+
+Aquatic_LxArg_LxEx_pre_Corpus_df <- as.data.frame(text=unlist(sapply(Aquatic_LxArg_LxEx_pre_Corpus, `[[`, "content")), 
+    stringsAsFactors=F)
+
+df <- data.frame(text = get("content", Aquatic_LxArg_LxEx_pre_Corpus))
+
+dataframe <- data.frame(text=unlist(sapply(mycorpus, `[`, "content")), 
+    stringsAsFactors=F)
+
+Aquatic_LxArg_LxEx_pre_Corpus_df <- data.frame(text = get("content", Aquatic_LxArg_LxEx_pre_Corpus))
+
+
+library (corpus)
+
+Aquatic_LxArg_LxEx_pre_Corpus_df <- as_corpus_frame(Aquatic_LxArg_LxEx_pre_Corpus)
+
+# Genero los clusters
+
+Aquatic_LxArg_LxEx_CLUS_8 <- conceptualStructure(Aquatic_LxArg_LxEx_pre_Corpus_df, field="text", stemming=FALSE, minDegree=100, k.max = 8, labelsize=4)
+
 ```
 
 
-Se genera la matriz documento-término que permite tratar al corpus como una bolsa de palabras (BoW) y determinar sus frecuencias. 
 
-```{r}
-#Creo la matriz documento-término
-Aquatic_LxArg_LxEx_DTM = DocumentTermMatrix(Aquatic_LxArg_LxEx_pre_Corpus, control = list(minWordLength = 1))
-```
 
 Aplico Topics models
 ```{r}
