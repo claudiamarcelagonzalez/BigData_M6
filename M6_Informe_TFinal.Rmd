@@ -59,7 +59,7 @@ Aquatic_LxArg_LxEx_pre_Corpus = tm_map(Aquatic_LxArg_LxEx_pre_Corpus, removeWord
 ```
 
 ```{r}
-inspect(Aquatic_LxArg_LxEx_pre_Corpus[1:2])
+inspect(Aquatic_LxArg_LxEx_pre_Corpus[1:4])
 
 #Esto lo probé y muestra cada tanto una \n que habria que eliminar. Ver en el ejemplo de Rosatti!!!!!!!!!!!!!!!!
 ```
