@@ -1,0 +1,218 @@
+---
+title: "Análisis de la producción científica de la base de datos Scopus indizada bajo la categoría temática Aquatic Science"
+subtitle: <strong>¿Qué tan representativa es de la producción científica sobre recursos pesqueros?</strong><br><br>  
+author: <strong>Claudia M. González</strong>  -  IdIHCS (CONICET/UNLP)
+date: diciembre de 2019
+output:
+ html_document:
+  code_folding: hide 
+  toc: true
+  toc_float: true
+---
+
+```{r setup, echo=FALSE}
+knitr::opts_chunk$set(cache=FALSE, echo=TRUE, include=TRUE, eval=TRUE, results="hide", comment=NA, warning = FALSE, message=FALSE)
+```
+
+## Introducción
+
+Las bases de datos bibliográficas [Scopus](https://www.elsevier.com/solutions/scopus) y [Web of Science](http://login.webofknowledge.com) son las fuentes más utilizadas para la realización de estudios bibliométricos sobre producción científica. Esto se debe a que ambas fuentes son multidisciplinares, cuentan con una interfaz de búsqueda potente que permite el planteo de estrategias de búsqueda avanzadas, además de presentar buenos niveles de normalización de datos y diferentes formatos de descarga. Si bien se sabe que la totalidad de la producción científica de cualquier agregado que se tome para realizar un estudio (país, disciplina, institución,etc.) no está contenida en esas bases de datos en su totalidad, también se sabe que no hay ninguna otra fuente alternativa que posea toda la cobertura. En el caso de la realización de estudios sobre el agregado Argentina, es más común utilizar la base de datos Scopus ya que, aún siendo un producto comercial de la empresa Elsevier, se la puede consultar libremente dentro de la red de instituciones de la Secretaría de Estado de Ciencia, Tecnología e Innovación productiva a través de la Biblioteca Electrónica.
+
+La base de datos Scopus agrupa las revistas que indiza bajo 334 categorías codificadas que se encuentran explícitas en su [Scopus Subject Areas and All Science Journal Classification Codes (ASJC)](https://service.elsevier.com/app/answers/detail/a_id/15181/supporthub/scopus/). Dado que la base de datos no realiza una clasificación temática a nivel de artículo, en los estudios bibliométricos es común tomar la misma categoría temática que se le ha asignado a la revista como la representativa para cada uno de sus artículos. 
+
+Por lo tanto, cuando se desea realizar estudios de producción científica por agregados temáticos, se identifica dentro de las 334 categorías la que se desea, o bien se realiza un agrupamiento de categorías que se considera que representan a un área temática que no ha sido definida como tal dentro de la ASJC. Tal es el caso de interés en la investigación dentro de la cual este trabajo se inscribe, en la cual se busca analizar la producción científica Argentina en el tema <strong>Agroindustria</strong>. Dado que la categoría Agroindustria no está definida en la ASJC, se explora la posibilidad de abordarla a partir de la sumatoria de la producción de las categorías **Agronomy and Crop Science** (1102) ; **Food Science** (1106) ; **Food Animals** (3403) ; **Acuatic Science** (1104) ; **Forestry** (1107) ; **Horticulture** (1108). 
+
+Sin embargo, un estudio anterior realizado sobre la producción científica Argentina en el periodo 2007-2016 sobre temas locales, en el que se aplicó como criterio de selección temática el abordaje anterior, (ver el trabajo [¿Responde la producción científica argentina a patrones de regionalización o globalización?](http://rpubs.com/cgonzalez/516773) ), nos hace dudar sobre lo que representa la categoría <strong>Aquatic Science</strong> en la conformación de la nueva categoría Agroindustria. ¿Por qué la duda? Si se observa en los resultados de dicho trabajo, vemos que Aquatic Science tiene un protagonismo significativo, lo que lleva a pensar que dicha categoría agrupa producción relacionada con recursos pesqueros y su explotación - pertinente para nuestro estudio-, pero además, también incluye producción que corresponde más a la ciencia básica zoológica, de vinculación no tan directa con la temática Agroindustria.    
+
+## Objetivo
+
+El objetivo de este trabajo es identificar los tópicos que tratan una porción de artículos del estudio anterior, en este caso solo los correspondientes a temas locales de la categoria Scopus Aquatic Science. El ánalisis se realiza sobre los títulos, resúmenes y palabras claves de los registros bibliográficos. De esta manera se busca obtener nueva evidencia que permita discernir sobre la validez o no de incluir la totalidad de la producción indizada bajo dicha categoría como parte de la producción de una gran área denominada Agroindustria.
+
+## Materiales y métodos
+
+Para el desarrollo del trabajo se formó un corpus de registros bibliográficos descargados de la base de datos [Scopus](https://www.elsevier.com/solutions/scopus). Tal como se indica en el [trabajo anterior](http://rpubs.com/cgonzalez/516773), en su selección se aplicó el rango temporal 2007-2016 como año de publicación, que en el título, resumen o palabras claves apareciera mencionado el topónimo Argentina o el nombre de alguna de las provincias argentinas, y que perteneciera a la categoría temática Aquatic Science (cod. 1104). Dicho corpus significa 2574 registros bibliográficos. Se procedió a descargarlos en formato BibTex. Es el formato elegido para poder convertirlos con facilidad en un *data frame* usando la función **scopus2df** del paquete **Bibliometrix**.
+```{r}
+library (tidyverse)
+library (bibliometrix)
+
+Aquatic_LxArg_LxEx <- as.tibble(convert2df(file = '/Users/claudiamgonzalez/Documents/FORM/BigData_Territorio/Modulo6_Machine_Learning/TrabajoFinal/BigData_M6_PROY/Datos/scopus_Acuatic_LxArg_LxEx.bib', dbsource = "scopus", format = "bibtex"))
+
+#Selecciono solo los campos título, resumen y palabras claves y los agrupo en una sola variable denominada texto.
+Aquatic_LxArg_LxEx <- Aquatic_LxArg_LxEx %>%
+  select(TI,DE,ID,AB) %>%
+  unite(texto, TI,DE,ID,AB, sep = " ")
+```
+
+Se realiza un preprocesamiento de los textos transformándolos a mayúsculas, removiendo la puntuación, los números y aplicando una *stopword* para el idioma inglés.
+
+```{r}
+library (tm)
+
+#Creo el Corpus
+Aquatic_LxArg_LxEx_pre_Corpus = Corpus(VectorSource(Aquatic_LxArg_LxEx))
+
+#Limpio el corpus
+Aquatic_LxArg_LxEx_pre_Corpus = tm_map(Aquatic_LxArg_LxEx_pre_Corpus, content_transformer(tolower))
+Aquatic_LxArg_LxEx_pre_Corpus = tm_map(Aquatic_LxArg_LxEx_pre_Corpus, removePunctuation)
+Aquatic_LxArg_LxEx_pre_Corpus = tm_map(Aquatic_LxArg_LxEx_pre_Corpus, removeNumbers)
+Aquatic_LxArg_LxEx_pre_Corpus = tm_map(Aquatic_LxArg_LxEx_pre_Corpus, removeWords, stopwords(kind = "en"))
+```
+
+```{r}
+inspect(Aquatic_LxArg_LxEx_pre_Corpus[1:3])
+
+#Esto lo probé y muestra cada tanto una \n que habria que eliminar. Ver en el ejemplo de Rosatti!!!!!!!!!!!!!!!!
+```
+
+
+Se genera la matriz documento-término que permite tratar al corpus como una bolsa de palabras (BoW) y determinar sus frecuencias. 
+
+```{r}
+#Creo la matriz documento-término
+Aquatic_LxArg_LxEx_DTM = DocumentTermMatrix(Aquatic_LxArg_LxEx_pre_Corpus, control = list(minWordLength = 1))
+```
+
+Aplico Topics models
+```{r}
+library(topicmodels)
+library(LDAvis)
+library(tsne)
+
+ui = unique(Aquatic_LxArg_LxEx_DTM$i)
+dtm = Aquatic_LxArg_LxEx_DTM[ui,]
+
+dim(Aquatic_LxArg_LxEx_DTM)
+
+dim(dtm)
+
+lda_fit <- LDA(dtm, k = 10,method = "Gibbs", control = list(delta=0.6,seed = 1234))
+saveRDS(lda_fit,'lda_fit.rds')
+
+lda_fit <- read_rds('lda_fit.rds')
+lda_fit
+
+Terms <- terms(lda_fit, 10)
+Terms
+
+topicmodels_json_ldavis <- function(fitted, dtm){
+  svd_tsne <- function(x) tsne(svd(x)$u)
+  
+  # Find required quantities
+  phi <- as.matrix(posterior(fitted)$terms)
+  theta <- as.matrix(posterior(fitted)$topics)
+  vocab <- colnames(phi)
+  term_freq <- slam::col_sums(dtm)
+  
+  # Convert to json
+  json_lda <- LDAvis::createJSON(phi = phi, theta = theta,
+                                 vocab = vocab,
+                                 mds.method = svd_tsne,
+                                 plot.opts = list(xlab="tsne", ylab=""),
+                                 doc.length = as.vector(table(dtm$i)),
+                                 term.frequency = term_freq)
+  
+  return(json_lda)
+}
+
+json_res <- topicmodels_json_ldavis(lda_fit, dtm)
+
+serVis(json_res)
+
+```
+
+
+
+## Resultados
+
+## Conclusión
+
+
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(tm)
+library(wordcloud2)
+library(topicmodels)
+library(LDAvis)
+library(tsne)
+
+
+
+```
+
+df <- read_rds()
+df
+
+### 1. Limpieza y organización de la información
+
+#### 1.a Crear un objeto Corpus de la librería `tm`
+
+```{r}
+#
+```
+
+#### 1.b Limpiar el Corpus con `tm_map`
+
+- Pasar a minúscula
+- Eliminar puntuación
+- Eliminar numeros
+- Eliminar stopwords
+
+```{r}
+#
+```
+
+Inspeccionar el corpus y revisar si quedaron Caracteres especiales que deban ser eliminados. En caso de que así fuera eliminarlos con `tm_map` y `content_transformer(function(x) str_remove_all(x, pattern = ))`
+
+```{r}
+#
+```
+
+#### 1.c Crear una matriz Documento-término con `DocumentTermMatrix`
+
+```{r}
+#
+```
+
+### 2. Wordcloud
+
+#### 2.a Buscar los términos más frecuentes con `findMostFreqTerms`
+
+
+```{r}
+#
+```
+
+#### 2.b Crear un dataframe con las palabras más frecuentes
+
+```{r}
+#
+```
+
+#### 2.c Crear una nube de palabras con `wordcloud2`
+
+```{r}
+#
+```
+
+
+### 3. Topic Modelling
+
+#### 3.1  eliminar los documentos vacíos de la matriz documento-término
+
+```{r}
+#
+```
+
+#### 3.2 Entrenar un modelo de LDA con la función `LDA`
+
+```{r}
+#
+```
+
+#### 3.3 Recuperar los diez términos más frecuentes de cada Tópico con `terms`
+
+```{r}
+#
+```
+
